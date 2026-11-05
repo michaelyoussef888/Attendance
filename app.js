@@ -12,17 +12,14 @@ function load() {
   try { return Object.assign({ key: '', sheet: '', names: [], dates: [], days: {} }, JSON.parse(localStorage.getItem(STORE) || '{}')); }
   catch (e) { return { key: '', sheet: '', names: [], dates: [], days: {} }; }
 }
+// drop records saved by the first version (dates without a year)
+Object.keys(S.days).forEach(k => { if (!/^\d{4}-\d{2}-\d{2}$/.test(k)) delete S.days[k]; });
 function save() { try { localStorage.setItem(STORE, JSON.stringify(S)); } catch (e) {} }
 function day(d) { return S.days[d] || (S.days[d] = { present: [], unmarked: [], dirty: false, rev: 0 }); }
 
-/* ---------- dates: sheet gives 'MM-dd', school year runs Sep → Aug ---------- */
-function fullDate(md) {
-  const now = new Date();
-  const start = now.getMonth() >= 7 ? now.getFullYear() : now.getFullYear() - 1;
-  const m = +md.slice(0, 2), d = +md.slice(3);
-  return new Date(m >= 8 ? start : start + 1, m - 1, d);
-}
-function label(md) { const m = +md.slice(0, 2), d = +md.slice(3); return 'الجمعة ' + d + ' ' + AR[m - 1]; }
+/* ---------- dates: sheet gives 'yyyy-MM-dd' ---------- */
+function fullDate(iso) { const [y, m, d] = iso.split('-').map(Number); return new Date(y, m - 1, d); }
+function label(iso) { const [y, m, d] = iso.split('-').map(Number); return 'الجمعة ' + d + ' ' + AR[m - 1] + ' ' + y; }
 
 /* ---------- server ---------- */
 function configured() { return typeof SCRIPT_URL === 'string' && /^https:\/\/script\.google\.com\//.test(SCRIPT_URL); }
@@ -161,7 +158,15 @@ $('switchBtn').addEventListener('click', () => {
   S.key = ''; save();
   $('keyIn').value = ''; $('main').hidden = true; $('bar').hidden = true; $('setup').hidden = false; $('keyIn').focus();
 });
-$('setupBtn').addEventListener('click', () => setup($('keyIn').value.trim()));
+// Same code however the phone typed it: no case, no spaces, Arabic/Persian digits → 0-9, any dash → -
+function cleanKey(k) {
+  return String(k || '').toLowerCase()
+    .replace(/[\u0660-\u0669]/g, c => String(c.charCodeAt(0) - 0x0660))
+    .replace(/[\u06F0-\u06F9]/g, c => String(c.charCodeAt(0) - 0x06F0))
+    .replace(/[\u2010-\u2015\u2212\u0640]/g, '-')
+    .replace(/[\s\u200e\u200f\u061c]/g, '');
+}
+$('setupBtn').addEventListener('click', () => setup(cleanKey($('keyIn').value)));
 $('keyIn').addEventListener('input', () => { $('setupErr').textContent = ''; });
 
 async function refreshInfo() {
@@ -177,9 +182,9 @@ async function refreshInfo() {
 /* ---------- start ---------- */
 (function start() {
   const m = location.hash.match(/key=([^&]+)/);
-  if (m) { history.replaceState(null, '', location.pathname); if (!S.key) { $('keyIn').value = decodeURIComponent(m[1]); } }
+  if (m) { history.replaceState(null, '', location.pathname); if (!S.key) { $('keyIn').value = cleanKey(decodeURIComponent(m[1])); } }
   if (S.key && S.names.length) { render(); refreshInfo().then(sync); }
-  else { $('setup').hidden = false; if ($('keyIn').value) setup($('keyIn').value); }
+  else { $('setup').hidden = false; if ($('keyIn').value) setup(cleanKey($('keyIn').value)); }
   if (!S.key) { $('main').hidden = true; $('setup').hidden = false; }
   window.addEventListener('online', () => { status(); refreshInfo().then(sync); });
   window.addEventListener('offline', () => status());
