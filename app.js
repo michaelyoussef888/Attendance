@@ -67,6 +67,7 @@ function status(kind) {
   const pending = Object.keys(S.days).filter(d => S.days[d].dirty).length;
   let cls = 'ok', msg;
   if (!configured()) { cls = 'err'; msg = 'لينك الشيت مش متظبط في config.js'; }
+  else if (kind === 'fail-switch') { cls = 'err'; msg = 'فيه حضور لسه ماتبعتش. افتح النت وابعته الأول، وبعدين غيّر الفصل'; }
   else if (kind === 'sending') { cls = 'wait'; msg = 'بيبعت للشيت…'; }
   else if (kind && kind.startsWith('missing:')) { cls = 'err'; msg = 'أسماء مش موجودة في الشيت: ' + kind.slice(8); }
   else if (kind === 'fail' && pending) { cls = 'err'; msg = 'ماقدرش يبعت. الحضور محفوظ على الموبايل وهيتبعت تاني لوحده'; }
@@ -145,6 +146,7 @@ async function setup(key) {
   $('setupBtn').disabled = true; $('setupBtn').textContent = 'بيحمّل الأسماء…';
   try {
     const info = await fetchInfo(key);
+    if (info.sheet !== S.sheet) { S.days = {}; cur = null; } // new class on this phone: start clean
     S.key = key; S.sheet = info.sheet; S.names = info.names; S.dates = info.dates; save();
     render();
   } catch (e) {
@@ -153,6 +155,12 @@ async function setup(key) {
     $('setupBtn').disabled = false; $('setupBtn').textContent = 'ابدأ';
   }
 }
+$('switchBtn').addEventListener('click', () => {
+  const pending = Object.keys(S.days).filter(d => S.days[d].dirty).length;
+  if (pending) { status('fail-switch'); return; }
+  S.key = ''; save();
+  $('keyIn').value = ''; $('main').hidden = true; $('bar').hidden = true; $('setup').hidden = false; $('keyIn').focus();
+});
 $('setupBtn').addEventListener('click', () => setup($('keyIn').value.trim()));
 $('keyIn').addEventListener('input', () => { $('setupErr').textContent = ''; });
 
@@ -172,6 +180,7 @@ async function refreshInfo() {
   if (m) { history.replaceState(null, '', location.pathname); if (!S.key) { $('keyIn').value = decodeURIComponent(m[1]); } }
   if (S.key && S.names.length) { render(); refreshInfo().then(sync); }
   else { $('setup').hidden = false; if ($('keyIn').value) setup($('keyIn').value); }
+  if (!S.key) { $('main').hidden = true; $('setup').hidden = false; }
   window.addEventListener('online', () => { status(); refreshInfo().then(sync); });
   window.addEventListener('offline', () => status());
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') sync(); });

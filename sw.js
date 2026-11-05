@@ -1,5 +1,5 @@
 // Offline cache for the app shell. Bump VERSION whenever you change any file.
-const VERSION = 'att-v1';
+const VERSION = 'att-v2';
 const FILES = ['./', './index.html', './app.js', './config.js', './manifest.json',
   './icon-192.png', './icon-512.png', './apple-touch-icon.png'];
 

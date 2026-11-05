@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>حضور مارمرقس ثانية</title>
+<title>حضور مدارس الأحد</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#1d4f5c">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -61,6 +61,7 @@ button{font:inherit;font-weight:600;border-radius:12px;height:48px;padding:0 16p
 .setup{margin-top:40px;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:20px;display:grid;gap:12px}
 .setup h2{margin:0;font-size:18px}
 .setup p{margin:0;color:var(--muted);font-size:14px;line-height:1.6}
+.link{height:auto;padding:0;border:0;background:none;color:var(--accent);font-size:13px;font-weight:500;text-decoration:underline;cursor:pointer}
 .err-text{color:var(--no);font-size:13px;min-height:1em}
 .empty{color:var(--muted);text-align:center;padding:40px 0}
 </style>
@@ -70,8 +71,8 @@ button{font:inherit;font-weight:600;border-radius:12px;height:48px;padding:0 16p
 
   <section id="setup" class="setup" hidden>
     <h2>تشغيل أول مرة</h2>
-    <p>اكتب كود الخدمة اللي خدته من أمين الخدمة. محتاج نت المرة دي بس عشان أسماء الأطفال تنزل على الموبايل.</p>
-    <input id="keyIn" type="text" autocomplete="off" placeholder="كود الخدمة" aria-label="كود الخدمة">
+    <p>اكتب كود الفصل اللي خدته من أمين الخدمة. كل فصل ليه كود مختلف. محتاج نت المرة دي بس عشان أسماء الأطفال تنزل على الموبايل.</p>
+    <input id="keyIn" type="text" autocomplete="off" placeholder="كود الفصل" aria-label="كود الفصل">
     <div id="setupErr" class="err-text"></div>
     <button id="setupBtn" class="primary" type="button">ابدأ</button>
   </section>
@@ -81,7 +82,7 @@ button{font:inherit;font-weight:600;border-radius:12px;height:48px;padding:0 16p
       <div class="top">
         <div>
           <h1 id="title">حضور الفصل</h1>
-          <div class="sub">دوس على اسم الطفل يبقى حاضر</div>
+          <div class="sub">دوس على اسم الطفل يبقى حاضر · <button id="switchBtn" class="link" type="button">تغيير الفصل</button></div>
         </div>
         <div class="count" aria-live="polite"><b id="cnt">0</b><span>من <span id="tot">0</span> حاضر</span></div>
       </div>
