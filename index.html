@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>حضور مارمرقس ثانية</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#1d4f5c">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="الحضور">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<style>
+:root{
+  --bg:#f6f5f0; --card:#fff; --fg:#1f2a2a; --muted:#6b7473; --line:#e2e0d8;
+  --accent:#1d4f5c; --onaccent:#fff; --num:#f3d34a; --numfg:#3d3200;
+  --yes:#1e7b45; --yesbg:#dff3e6; --no:#a03a35; --nobg:#fbeceb; --warn:#8a5a00; --warnbg:#fdf1d8;
+  --font:-apple-system,"SF Arabic","Segoe UI",Tahoma,"Noto Sans Arabic",sans-serif;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){:root{
+  --bg:#121817; --card:#1a2221; --fg:#e8ecea; --muted:#9aa5a3; --line:#2a3533;
+  --accent:#7fc3d1; --onaccent:#0d1d21; --num:#5a4a10; --numfg:#ffe68a;
+  --yes:#7fd8a0; --yesbg:#16382a; --no:#f0a29d; --nobg:#3a1f1d; --warn:#f3c86b; --warnbg:#3a2e12; color-scheme:dark}}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--fg);font-family:var(--font);font-size:16px;-webkit-tap-highlight-color:transparent;padding-top:env(safe-area-inset-top)}
+[hidden]{display:none!important}
+.wrap{max-width:560px;margin:0 auto;padding:0 max(16px,env(safe-area-inset-right)) 140px max(16px,env(safe-area-inset-left))}
+header{position:sticky;top:env(safe-area-inset-top);z-index:5;background:var(--bg);padding:14px 0 10px;display:grid;grid-template-columns:minmax(0,1fr);gap:10px;border-bottom:1px solid var(--line)}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top);background:var(--bg);z-index:10}
+.top>div:first-child{min-width:0}
+.top{display:flex;align-items:center;justify-content:space-between;gap:12px}
+h1{font-size:20px;margin:0;color:var(--accent)}
+.sub{font-size:13px;color:var(--muted);margin-top:2px}
+.count{font-variant-numeric:tabular-nums;text-align:center;background:var(--yesbg);color:var(--yes);border-radius:12px;padding:6px 12px;min-width:84px}
+.count b{display:block;font-size:22px;line-height:1.2}
+.count span{font-size:12px}
+.controls{display:flex;gap:8px}
+select,input{font:inherit;font-size:15px;color:var(--fg);background:var(--card);border:1px solid var(--line);border-radius:10px;height:42px;padding:0 10px;min-width:0}
+select{flex:0 1 auto;max-width:60%}
+input{flex:1 1 0;width:0}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.status{font-size:13px;border-radius:10px;padding:8px 12px;display:flex;align-items:center;gap:8px}
+.status.ok{background:var(--yesbg);color:var(--yes)}
+.status.wait{background:var(--warnbg);color:var(--warn)}
+.status.err{background:var(--nobg);color:var(--no)}
+.status .dot{width:8px;height:8px;border-radius:50%;background:currentColor;flex:0 0 auto}
+ul{list-style:none;margin:12px 0 0;padding:0;display:grid;gap:6px}
+.row{display:flex;align-items:center;gap:12px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:0 12px;min-height:54px;cursor:pointer;user-select:none;-webkit-user-select:none}
+.n{flex:0 0 auto;width:30px;height:30px;border-radius:8px;background:var(--num);color:var(--numfg);display:grid;place-items:center;font-weight:600;font-size:14px;font-variant-numeric:tabular-nums}
+.nm{flex:1;min-width:0;font-size:17px;font-weight:500}
+.st{flex:0 0 auto;font-size:14px;font-weight:600;color:var(--no);background:var(--nobg);border-radius:999px;padding:4px 12px}
+.row.on{background:var(--yesbg);border-color:var(--yes)}
+.row.on .st{color:var(--yesbg);background:var(--yes)}
+.bar{position:fixed;inset:auto 0 0;z-index:6;background:var(--card);border-top:1px solid var(--line);padding:10px max(16px,env(safe-area-inset-right)) calc(10px + env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left))}
+.bar .in{max-width:560px;margin:0 auto;display:flex;gap:8px}
+button{font:inherit;font-weight:600;border-radius:12px;height:48px;padding:0 16px;cursor:pointer;border:1px solid var(--line);background:var(--card);color:var(--fg)}
+.primary{flex:1;background:var(--accent);color:var(--onaccent);border-color:var(--accent)}
+.setup{margin-top:40px;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:20px;display:grid;gap:12px}
+.setup h2{margin:0;font-size:18px}
+.setup p{margin:0;color:var(--muted);font-size:14px;line-height:1.6}
+.err-text{color:var(--no);font-size:13px;min-height:1em}
+.empty{color:var(--muted);text-align:center;padding:40px 0}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <section id="setup" class="setup" hidden>
+    <h2>تشغيل أول مرة</h2>
+    <p>اكتب كود الخدمة اللي خدته من أمين الخدمة. محتاج نت المرة دي بس عشان أسماء الأطفال تنزل على الموبايل.</p>
+    <input id="keyIn" type="text" autocomplete="off" placeholder="كود الخدمة" aria-label="كود الخدمة">
+    <div id="setupErr" class="err-text"></div>
+    <button id="setupBtn" class="primary" type="button">ابدأ</button>
+  </section>
+
+  <section id="main" hidden>
+    <header>
+      <div class="top">
+        <div>
+          <h1 id="title">حضور الفصل</h1>
+          <div class="sub">دوس على اسم الطفل يبقى حاضر</div>
+        </div>
+        <div class="count" aria-live="polite"><b id="cnt">0</b><span>من <span id="tot">0</span> حاضر</span></div>
+      </div>
+      <div class="controls">
+        <select id="date" aria-label="تاريخ الخدمة"></select>
+        <input id="q" type="search" placeholder="دوّر على اسم" aria-label="دوّر على اسم">
+      </div>
+      <div id="status" class="status ok" role="status"><span class="dot"></span><span id="statusText">جاهز</span></div>
+    </header>
+    <ul id="list"></ul>
+  </section>
+</div>
+
+<div class="bar" id="bar" hidden>
+  <div class="in">
+    <button id="syncBtn" class="primary" type="button">ابعت للشيت دلوقتي</button>
+  </div>
+</div>
+
+<script src="config.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
