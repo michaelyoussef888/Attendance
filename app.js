@@ -1,7 +1,7 @@
 'use strict';
 // Data lives on the phone (localStorage) and is pushed to the Google Sheet whenever there is internet.
 const STORE = 'attendance-v1';
-const APP_VERSION = '8';
+const APP_VERSION = '11';
 const AR = ['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
 const $ = id => document.getElementById(id);
 
@@ -40,21 +40,23 @@ async function sync() {
   if (!navigator.onLine) { status(); return; }
   syncing = true; status('sending');
   const revs = {};
-  const records = dirty.map(d => { revs[d] = S.days[d].rev; return { date: d, present: S.days[d].present, absent: S.days[d].unmarked }; });
+  const records = dirty.map(d => { revs[d] = S.days[d].rev; return { date: d, editedOn: S.days[d].editedOn || null, present: S.days[d].present, absent: S.days[d].unmarked }; });
   try {
     const r = await fetch(SCRIPT_URL, { method: 'POST', body: JSON.stringify({ key: S.key, records }) });
     const j = await r.json();
     if (!j.ok) throw new Error(j.error || 'error');
-    const missing = [];
+    const missing = [], refused = [];
     (j.results || []).forEach(res => {
       const dd = S.days[res.date];
       if (!dd) return;
       if (res.ok && dd.rev === revs[res.date]) { dd.dirty = false; dd.sentAt = Date.now(); }
+      // the sheet refused a change to a Friday that's over: drop it so it doesn't wait forever
+      if (res.error === 'locked') { dd.dirty = false; dd.present = []; dd.unmarked = []; refused.push(label(res.date)); }
       if (res.missing && res.missing.length) missing.push(...res.missing);
     });
     save();
     lastSyncDone = Date.now();
-    status(missing.length ? 'missing:' + missing.join('، ') : null);
+    status(refused.length ? 'refused:' + refused.join('، ') : missing.length ? 'missing:' + missing.join('، ') : null);
     setTimeout(refreshInfo, 500);
   } catch (e) {
     status('fail');
@@ -70,6 +72,8 @@ function status(kind) {
   if (!configured()) { cls = 'err'; msg = 'لينك الشيت مش متظبط في config.js'; }
   else if (kind === 'fail-switch') { cls = 'err'; msg = 'فيه حضور لسه ماتبعتش. افتح النت وابعته الأول، وبعدين غيّر الفصل'; }
   else if (kind === 'fail-pull') { cls = 'err'; msg = 'ماقدرش يجيب آخر حضور من الشيت. اتأكد من النت'; }
+  else if (kind === 'locked') { cls = 'lock'; msg = '🔒 الجمعة دي عدّى عليها أسبوع واتقفلت. التعديل من الشيت بس'; }
+  else if (kind && kind.startsWith('refused:')) { cls = 'err'; msg = 'الشيت رفض التعديل لأن الجمعة اتقفلت: ' + kind.slice(8); }
   else if (kind === 'sending') { cls = 'wait'; msg = 'بيبعت للشيت…'; }
   else if (kind && kind.startsWith('missing:')) { cls = 'err'; msg = 'أسماء مش موجودة في الشيت: ' + kind.slice(8); }
   else if (kind === 'fail' && pending) { cls = 'err'; msg = 'ماقدرش يبعت. الحضور محفوظ على الموبايل وهيتبعت تاني لوحده'; }
@@ -77,11 +81,17 @@ function status(kind) {
   else {
     const d = cur && S.days[cur];
     msg = d && d.sentAt ? 'اتبعت للشيت ✓' : 'جاهز';
+    if (cur && isLocked(cur)) { cls = 'lock'; msg = '🔒 الجمعة دي اتقفلت · للعرض بس'; }
+    else if (cur) {
+      const t = new Date(); t.setHours(0, 0, 0, 0);
+      if (fullDate(cur) < t) { const l = lockDay(cur); l.setDate(l.getDate() - 1); msg += ' · مفتوحة للتعديل لحد ' + dayName(l); }
+    }
     if (S.lastPull) { const t = new Date(S.lastPull); msg += ' · آخر تحديث ' + t.getHours() + ':' + String(t.getMinutes()).padStart(2, '0'); }
   }
   el.className = 'status ' + cls; t.textContent = msg;
   $('syncBtn').hidden = !pending;
-  $('bar').hidden = !pending;
+  $('bar').hidden = $('main').hidden;
+  editUI();
 }
 
 /* ---------- UI ---------- */
@@ -121,6 +131,9 @@ function paint() {
     r.classList.toggle('on', on);
     r.querySelector('.st').textContent = on ? 'حاضر' : 'غائب';
     r.setAttribute('aria-pressed', on);
+    r.classList.toggle('locked', isLocked(cur));
+    r.classList.toggle('ro', !isLocked(cur) && !canEdit());
+    r.setAttribute('aria-disabled', isLocked(cur) || !canEdit());
     const tags = r.querySelector('.tags'); tags.innerHTML = '';
     if (bd.has(n)) tags.insertAdjacentHTML('beforeend', '<span class="tag bday">🎂 عيد ميلاد الأسبوع ده</span>');
     const s = f.streak[n] || 0;
@@ -132,13 +145,47 @@ function paint() {
 }
 
 let syncTimer = null;
+function isoDay(t) { return t.getFullYear() + '-' + String(t.getMonth() + 1).padStart(2, '0') + '-' + String(t.getDate()).padStart(2, '0'); }
+const LOCK_AFTER_DAYS = 7;   // a Friday can be edited for a week, then it's locked (same rule in Code.gs)
+function lockDay(date) { const d = fullDate(date); d.setDate(d.getDate() + LOCK_AFTER_DAYS); return d; }
+function isLocked(date) { const t = new Date(); t.setHours(0, 0, 0, 0); return !!date && t >= lockDay(date); }
+/* ---------- edit button: names are locked until you tap it, and lock again by themselves ---------- */
+const EDIT_IDLE_SEC = 120;   // lock again after 2 minutes with no tap on a name
+let editUntil = 0;
+function canEdit() { return Date.now() < editUntil; }
+function lockEdit() { if (editUntil) { editUntil = 0; editUI(); paint(); } }
+function editUI() {
+  const b = $('editBtn');
+  if (!cur || isLocked(cur)) { b.hidden = true; return; }
+  b.hidden = false;
+  const open = canEdit();
+  b.classList.toggle('open', open);
+  b.setAttribute('aria-pressed', open);
+  if (open) {
+    const s = Math.ceil((editUntil - Date.now()) / 1000);
+    b.textContent = '🔓 التعديل مفتوح · بيقفل بعد ' + Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0') + ' · دوس تقفله';
+  } else b.textContent = '🔒 دوس هنا عشان تعدّل';
+}
+$('editBtn').addEventListener('click', () => {
+  editUntil = canEdit() ? 0 : Date.now() + EDIT_IDLE_SEC * 1000;
+  editUI(); paint();
+});
+setInterval(() => { if (editUntil && !canEdit()) { editUntil = 0; paint(); } editUI(); }, 1000);
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') lockEdit(); });
+
 function toggle(name) {
+  if (isLocked(cur)) { status('locked'); return; }
+  if (!canEdit()) {                       // a tap by mistake: do nothing, point at the button
+    const b = $('editBtn'); b.classList.remove('hint'); void b.offsetWidth; b.classList.add('hint');
+    return;
+  }
+  editUntil = Date.now() + EDIT_IDLE_SEC * 1000;   // every tap gives you 2 more minutes
   const d = day(cur);
   const was = isPresent(cur, name);
   const i = d.present.indexOf(name), j = d.unmarked.indexOf(name);
   if (was) { if (i >= 0) d.present.splice(i, 1); if (j < 0) d.unmarked.push(name); }
   else { if (i < 0) d.present.push(name); if (j >= 0) d.unmarked.splice(j, 1); }
-  d.dirty = true; d.rev++;
+  d.dirty = true; d.rev++; d.editedOn = isoDay(new Date());
   save(); paint(); status();
   clearTimeout(syncTimer); syncTimer = setTimeout(sync, 2500);
 }
@@ -148,7 +195,7 @@ $('q').addEventListener('input', () => {
   const q = norm($('q').value.trim());
   rows.forEach((r, i) => { r.hidden = !!q && !norm(S.names[i]).includes(q); });
 });
-$('date').addEventListener('change', () => { cur = $('date').value; paint(); status(); maybeBirthdayPopup(); });
+$('date').addEventListener('change', () => { cur = $('date').value; editUntil = 0; paint(); status(); maybeBirthdayPopup(); });
 $('syncBtn').addEventListener('click', sync);
 
 /* ---------- setup ---------- */
@@ -231,20 +278,24 @@ function isPresent(date, name) {
 }
 function heldService(date) { return S.names.some(n => isPresent(date, n)); }   // nobody present = no service (holiday)
 
+// Counts Fridays missed IN A ROW since the child last came. Coming once resets it to 0.
 function followUp() {
   const today = new Date(); today.setHours(0, 0, 0, 0);
   const past = S.dates.filter(d => fullDate(d) < today && heldService(d));   // finished Fridays with a service
-  const streak = {}, total = {}, lastSeen = {};
+  const todayIso = S.dates.find(d => fullDate(d).getTime() === today.getTime());
+  const streak = {}, lastSeen = {};
   S.names.forEach(n => {
-    let s = 0, counting = true, t = 0, seen = null;
+    // came today → reset straight away (not coming yet today doesn't count: the service may still be on)
+    if (todayIso && isPresent(todayIso, n)) { streak[n] = 0; lastSeen[n] = todayIso; return; }
+    let s = 0, seen = null;
     for (let k = past.length - 1; k >= 0; k--) {
-      const p = isPresent(past[k], n);
-      if (p) { counting = false; if (!seen) seen = past[k]; } else { t++; if (counting) s++; }
+      if (isPresent(past[k], n)) { seen = past[k]; break; }
+      s++;
     }
-    streak[n] = s; total[n] = t; lastSeen[n] = seen;
+    streak[n] = s; lastSeen[n] = seen;
   });
   const list = S.names.filter(n => streak[n] >= ABSENT_ALERT).sort((a, b) => streak[b] - streak[a]);
-  return { streak, total, lastSeen, list, services: past.length };
+  return { streak, lastSeen, list };
 }
 
 /* ---------- birthdays ---------- */
@@ -294,17 +345,13 @@ function openFollow() {
       '<p class="none">' + (Object.keys(S.birthdays).length ? 'مافيش' : 'مافيش تواريخ ميلاد في الشيت لسه') + '</p>'));
   sec.push('<h3>محتاجين افتقاد · غابوا ' + ABSENT_ALERT + ' مرات ورا بعض أو أكتر</h3>' +
     (f.list.length ? '<ul class="plist" id="fA">' + f.list.map(n =>
-      '<li><b></b><span>غاب ' + f.streak[n] + ' مرات ورا بعض · ' + f.total[n] + ' غياب من ' + f.services +
+      '<li><b></b><span>غاب ' + f.streak[n] + ' مرات ورا بعض' +
       (f.lastSeen[n] ? ' · آخر حضور ' + label(f.lastSeen[n]).replace('الجمعة ', '') : ' · ماحضرش لسه') + '</span></li>').join('') + '</ul>'
       : '<p class="none">كله تمام</p>'));
-  const top = S.names.slice().sort((a, b) => f.total[b] - f.total[a]).filter(n => f.total[n] > 0).slice(0, 10);
-  sec.push('<h3>الأكتر غياب من أول السنة</h3>' +
-    (top.length ? '<ul class="plist" id="fT">' + top.map(n => '<li><b></b><span>' + f.total[n] + ' غياب من ' + f.services + '</span></li>').join('') + '</ul>' : '<p class="none">مافيش</p>'));
   $('followBody').innerHTML = sec.join('');
   if (wk.length) fillNames($('fW'), wk);
   if (up.length) fillNames($('fU'), up);
   if (f.list.length) fillNames($('fA'), f.list.map(n => ({ name: n })));
-  if (top.length) fillNames($('fT'), top.map(n => ({ name: n })));
   $('followPop').hidden = false; $('followClose').focus();
 }
 $('followBtn').addEventListener('click', openFollow);
