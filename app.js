@@ -1,7 +1,7 @@
 'use strict';
 // Data lives on the phone (localStorage) and is pushed to the Google Sheet whenever there is internet.
 const STORE = 'attendance-v1';
-const APP_VERSION = '11';
+const APP_VERSION = '12';
 const AR = ['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
 const $ = id => document.getElementById(id);
 
@@ -14,6 +14,8 @@ function load() {
   try { return Object.assign(base(), JSON.parse(localStorage.getItem(STORE) || '{}')); }
   catch (e) { return base(); }
 }
+// a random id for this phone: servant codes get tied to it
+if (!S.dev) { S.dev = 'd' + Math.random().toString(36).slice(2, 10) + Date.now().toString(36); try { localStorage.setItem(STORE, JSON.stringify(S)); } catch (e) {} }
 // drop records saved by the first version (dates without a year)
 Object.keys(S.days).forEach(k => { if (!/^\d{4}-\d{2}-\d{2}$/.test(k)) delete S.days[k]; });
 function save() { try { localStorage.setItem(STORE, JSON.stringify(S)); } catch (e) {} }
@@ -27,14 +29,14 @@ function label(iso) { const [y, m, d] = iso.split('-').map(Number); return 'ال
 function configured() { return typeof SCRIPT_URL === 'string' && /^https:\/\/script\.google\.com\//.test(SCRIPT_URL); }
 
 async function fetchInfo(key) {
-  const r = await fetch(SCRIPT_URL + '?action=info&key=' + encodeURIComponent(key), { cache: 'no-store' });
+  const r = await fetch(SCRIPT_URL + '?action=info&key=' + encodeURIComponent(key) + '&dev=' + encodeURIComponent(S.dev), { cache: 'no-store' });
   const j = await r.json();
   if (!j.ok) throw new Error(j.error || 'error');
   return j;
 }
 
 async function sync() {
-  if (syncing || !configured() || !S.key) return;
+  if (syncing || !configured() || !S.key || isStaff()) return;
   const dirty = Object.keys(S.days).filter(d => S.days[d].dirty);
   if (!dirty.length) { status(); return; }
   if (!navigator.onLine) { status(); return; }
@@ -42,7 +44,7 @@ async function sync() {
   const revs = {};
   const records = dirty.map(d => { revs[d] = S.days[d].rev; return { date: d, editedOn: S.days[d].editedOn || null, present: S.days[d].present, absent: S.days[d].unmarked }; });
   try {
-    const r = await fetch(SCRIPT_URL, { method: 'POST', body: JSON.stringify({ key: S.key, records }) });
+    const r = await fetch(SCRIPT_URL, { method: 'POST', body: JSON.stringify({ key: S.key, dev: S.dev, records }) });
     const j = await r.json();
     if (!j.ok) throw new Error(j.error || 'error');
     const missing = [], refused = [];
@@ -97,7 +99,7 @@ function status(kind) {
 /* ---------- UI ---------- */
 let rows = [];
 function render() {
-  $('setup').hidden = true; $('main').hidden = false;
+  $('setup').hidden = true; $('staff').hidden = true; $('main').hidden = false;
   $('title').textContent = 'حضور ' + (S.sheet || 'الفصل').replace(/^غ\s+/, '');
   document.title = $('title').textContent;
   const sel = $('date'); sel.innerHTML = '';
@@ -206,12 +208,17 @@ async function setup(key) {
   $('setupBtn').disabled = true; $('setupBtn').textContent = 'بيحمّل الأسماء…';
   try {
     const info = await fetchInfo(key);
+    if (info.role === 'servant' || info.role === 'admin') {          // servants' follow-up
+      S.key = key; S.role = info.role; S.staff = { data: null, q: {} }; save();
+      Staff.start(info); return;
+    }
     if (info.sheet !== S.sheet) { S.days = {}; cur = null; } // new class on this phone: start clean
-    S.key = key; keepInfo(info); save();
+    S.key = key; S.role = 'class'; keepInfo(info); save();
     render();
   } catch (e) {
     $('setupErr').textContent = e.message === 'bad-key'
-      ? 'الكود غلط. الموبايل بعت: ' + (key || '(فاضي)') + ' — قارنه بكود الفصل'
+      ? 'الكود غلط. الموبايل بعت: ' + (key || '(فاضي)') + ' — قارنه بالكود'
+      : ['other-device', 'too-many', 'servant-not-found'].indexOf(e.message) >= 0 ? Staff.errText(e.message)
       : 'محتاج نت أول مرة. اتأكد إن فيه نت وجرّب تاني (' + e.message + ')';
   } finally {
     $('setupBtn').disabled = false; $('setupBtn').textContent = 'ابدأ';
@@ -237,7 +244,9 @@ $('keyIn').addEventListener('keydown', e => { if (e.key === 'Enter') { e.prevent
 $('ver').textContent = 'إصدار ' + APP_VERSION;
 
 let pulling = false, lastSyncDone = 0;
+function isStaff() { return S.role === 'servant' || S.role === 'admin'; }
 async function refreshInfo(manual) {
+  if (isStaff()) return;
   if (pulling || syncing || !navigator.onLine || !configured() || !S.key) { if (manual) status(); return; }
   pulling = true;
   const started = Date.now();
@@ -363,7 +372,8 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') { $('bdayPop
 (function start() {
   const m = location.hash.match(/key=([^&]+)/);
   if (m) { history.replaceState(null, '', location.pathname); if (!S.key) { $('keyIn').value = cleanKey(decodeURIComponent(m[1])); } }
-  if (S.key && S.names.length) { render(); refreshInfo().then(sync); }
+  if (S.key && isStaff() && Staff.start(null)) { /* servants' screen */ }
+  else if (S.key && S.names.length) { render(); refreshInfo().then(sync); }
   else { $('setup').hidden = false; if ($('keyIn').value) setup(cleanKey($('keyIn').value)); }
   if (!S.key) { $('main').hidden = true; $('setup').hidden = false; }
   window.addEventListener('online', () => { status(); refreshInfo().then(sync); });

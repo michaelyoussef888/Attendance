@@ -68,6 +68,32 @@ button{font:inherit;font-weight:600;border-radius:12px;height:48px;padding:0 16p
 .hint{animation:hint .5s}
 @keyframes hint{25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
 @media (prefers-reduced-motion:reduce){.hint{animation:none}}
+.seg{height:40px;min-width:52px;padding:0 10px;font-size:15px;border-radius:10px;background:var(--card);color:var(--muted)}
+.seg.yes.on{background:var(--yes);color:var(--yesbg);border-color:var(--yes)}
+.seg.no.on{background:var(--no);color:var(--nobg);border-color:var(--no)}
+.seg.mid.on{background:var(--warn);color:var(--warnbg);border-color:var(--warn)}
+.scard{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:10px 12px;margin-top:10px;display:grid;gap:6px}
+.scard.ro .seg{cursor:default}
+.shead{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:17px}
+.notes{font-size:13px;color:var(--muted);background:var(--bg);border-radius:8px;padding:6px 8px}
+.trow{display:flex;align-items:center;gap:8px}
+.trow .tname{flex:1;min-width:0;font-size:16px;font-weight:500}
+.trow.exc{border-top:1px dashed var(--line);padding-top:6px}
+.trow.exc .seg{min-width:0;font-size:13px}
+.trow.need .tname{color:var(--no)}
+.excbanner{width:100%;height:auto;min-height:44px;background:var(--warnbg);color:var(--warn);border-color:var(--warn);font-size:14px;padding:8px 12px}
+.exrow{display:grid;gap:6px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 12px}
+.exrow span{display:block;font-size:13px;color:var(--muted)}
+.exbtns{display:flex;gap:8px}.exbtns .seg{flex:1;font-size:14px}
+#sExcList{display:grid;gap:8px}
+.hh{font-size:15px;color:var(--muted);margin:18px 0 6px}
+.hscroll{overflow-x:auto;background:var(--card);border:1px solid var(--line);border-radius:12px}
+.htab{border-collapse:collapse;width:100%;font-size:13px;font-variant-numeric:tabular-nums;white-space:nowrap}
+.htab th,.htab td{padding:7px 8px;text-align:center;border-bottom:1px solid var(--line)}
+.htab th{color:var(--muted);font-weight:600}
+.htab .hy{color:var(--yes);font-weight:600}.htab .hn{color:var(--no);font-weight:600}
+.htab tr.sum td{background:var(--bg);font-size:12px}
+#staff .sh{position:sticky;top:env(safe-area-inset-top);z-index:5;background:var(--bg);padding:14px 0 10px;display:grid;grid-template-columns:minmax(0,1fr);gap:10px;border-bottom:1px solid var(--line)}
 .primary{flex:1;background:var(--accent);color:var(--onaccent);border-color:var(--accent)}
 .setup{margin-top:40px;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:20px;display:grid;gap:12px}
 .setup h2{margin:0;font-size:18px}
@@ -109,6 +135,8 @@ button{font:inherit;font-weight:600;border-radius:12px;height:48px;padding:0 16p
     <button id="setupBtn" class="primary" type="button">ابدأ</button>
     <div class="ver" id="ver"></div>
   </section>
+
+  <section id="staff" hidden></section>
 
   <section id="main" hidden>
     <header>
@@ -154,6 +182,7 @@ button{font:inherit;font-weight:600;border-radius:12px;height:48px;padding:0 16p
 </div>
 
 <script src="config.js"></script>
+<script src="staff.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
