@@ -1,7 +1,7 @@
 'use strict';
 // Data lives on the phone (localStorage) and is pushed to the Google Sheet whenever there is internet.
 const STORE = 'attendance-v1';
-const APP_VERSION = '12';
+const APP_VERSION = '14';
 const AR = ['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
 const $ = id => document.getElementById(id);
 

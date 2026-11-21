@@ -53,7 +53,8 @@ const Staff = (() => {
   }
 
   /* ---------- who can edit ---------- */
-  function canEditDate(date) { return isAdmin() ? !isLocked(date) : date === today(); }
+  // servant: from that Friday until it locks a week later (same rule as Code.gs STAFF_GRACE_DAYS); admin: until it locks
+  function canEditDate(date) { return isAdmin() ? !isLocked(date) : (date <= today() && !isLocked(date)); }
   const editOpen = () => Date.now() < editUntil;
 
   /* ---------- screen ---------- */
@@ -116,8 +117,11 @@ const Staff = (() => {
     const p = pending();
     if (!msg) {
       if (p) { cls = 'wait'; msg = navigator.onLine ? 'محفوظ على الموبايل، هيتبعت حالاً' : 'محفوظ على الموبايل — هيتبعت أول ما يبقى فيه نت'; }
-      else if (!canEditDate(cur)) { cls = 'lock'; msg = isAdmin() ? '🔒 الجمعة دي اتقفلت · للعرض بس' : '🔒 للعرض بس · بتسجّل يوم الجمعة نفسه بس'; }
-      else { cls = 'ok'; msg = 'جاهز'; }
+      else if (!canEditDate(cur)) { cls = 'lock'; msg = isAdmin() ? '🔒 الجمعة دي اتقفلت · للعرض بس' : (cur > today() ? '🔒 الجمعة دي لسه ماجاتش' : '🔒 الجمعة دي اتقفلت · للعرض بس'); }
+      else {
+        cls = 'ok'; msg = 'جاهز';
+        if (cur < today()) { const l = fullDate(cur); l.setDate(l.getDate() + LOCK_AFTER_DAYS - 1); msg += ' · مفتوحة للتعديل لحد ' + dayName(l); }
+      }
       if (!p && st().lastPull) { const t = new Date(st().lastPull); msg += ' · آخر تحديث ' + t.getHours() + ':' + String(t.getMinutes()).padStart(2, '0'); }
     }
     el.className = 'status ' + (cls || 'ok'); $('sStatusText').textContent = msg;
@@ -154,7 +158,7 @@ const Staff = (() => {
       return `<section class="scard${can ? '' : ' ro'}">
         ${isAdmin() ? `<div class="shead"><b>${esc(sv.name)}</b>${absent ? '<span class="tag miss">ماحضرش الخدمة</span>' : ''}</div>` : ''}
         ${isAdmin() && sv.notes ? `<div class="notes">📝 ${esc(sv.notes)}</div>` : ''}
-        ${rows}${exc}</section>`;
+        ${rows}${exc}${isAdmin() ? lastFour(t, sv) : ''}</section>`;
     }).join('') || '<p class="empty">مافيش خدام في التاب ده</p>';
     $('sBody').querySelectorAll('button.seg').forEach(b => b.onclick = () => tap(b));
     if (!isAdmin()) history();
@@ -174,6 +178,23 @@ const Staff = (() => {
     if (b.dataset.e) { const now = excVal(t, sv, cur); setVal(t, sv, cur, null, null, now === b.dataset.e ? '' : b.dataset.e); return; }
     const task = t.tasks[+b.dataset.k], now = taskVal(t, sv, +b.dataset.k, cur);
     setVal(t, sv, cur, task, now === b.dataset.v ? '' : b.dataset.v);
+  }
+
+  // أمين الخدمة: the 4 Fridays before the one on screen, under each servant
+  const HIST_WEEKS = 4;
+  function lastFour(t, sv) {
+    const weeks = t.dates.filter(d => d < cur && d <= today()).slice(-HIST_WEEKS).reverse();
+    if (!weeks.length) return '';
+    const short = s => s.replace(/^ال/, '').split(' ')[0];
+    let yes = 0, all = 0;
+    const body = weeks.map(d => {
+      const cells = t.tasks.map((_, k) => { const v = taskVal(t, sv, k, d); if (v) { all++; if (v === YES) yes++; } return '<td class="' + (v === YES ? 'hy' : v === NO ? 'hn' : '') + '">' + (v || '·') + '</td>'; }).join('');
+      const e = excVal(t, sv, d);
+      return '<tr><td class="hd">' + label(d).replace('الجمعة ', '').replace(/ \d{4}$/, '') + '</td>' + cells + '<td class="he">' + (e === EXC ? '<span class="ex b">بإعتذار</span>' : e === UNEXC ? '<span class="ex x">بدون</span>' : '') + '</td></tr>';
+    }).join('');
+    return `<details class="last4" open><summary>آخر ${weeks.length} جمعات · ${yes} ✓ من ${all}</summary>
+      <div class="hscroll"><table class="htab mini"><thead><tr><th></th>${t.tasks.map(x => '<th>' + esc(short(x)) + '</th>').join('')}<th>إعتذار</th></tr></thead>
+      <tbody>${body}</tbody></table></div></details>`;
   }
 
   // the servant's own record: every Friday so far, read only
